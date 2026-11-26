@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+.idea/
+build/
+local.properties
+captures/
+.cxx/
+.externalNativeBuild/
+build.log
+# Không bao giờ commit khóa ký hay bản sao lưu
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.vault
