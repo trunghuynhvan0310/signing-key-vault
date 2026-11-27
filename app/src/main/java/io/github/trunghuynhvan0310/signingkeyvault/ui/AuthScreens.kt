@@ -3,9 +3,7 @@ package io.github.trunghuynhvan0310.signingkeyvault.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,10 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,10 +28,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,11 +44,11 @@ typealias RequireAuth = (() -> Unit) -> Unit
 
 @Composable
 fun OnboardingScreen(vm: AppViewModel, requireAuth: RequireAuth) {
-    var page by rememberSaveable { mutableIntStateOf(0) }
-    val titles = listOf(R.string.onb1_title, R.string.onb2_title, R.string.onb3_title)
-    val texts = listOf(R.string.onb1_text, R.string.onb2_text, R.string.onb3_text)
-    val last = page == titles.lastIndex
-
+    val points = listOf(
+        Icons.Default.Lock to R.string.onb_point1,
+        Icons.Default.Warning to R.string.onb_point2,
+        Icons.Default.CheckCircle to R.string.onb_point3,
+    )
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -62,34 +59,20 @@ fun OnboardingScreen(vm: AppViewModel, requireAuth: RequireAuth) {
         ) {
             Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-            Text(stringResource(titles[page]), style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(12.dp))
-            Text(stringResource(texts[page]), style = MaterialTheme.typography.bodyLarge)
-        }
-        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.Center) {
-            titles.indices.forEach { index ->
-                Box(
-                    Modifier.padding(4.dp).size(8.dp).background(
-                        if (index == page) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                        CircleShape,
-                    ),
-                )
-            }
-        }
-        if (last) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { requireAuth { vm.createVault() } }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.action_create_vault))
+            Text(stringResource(R.string.onb_title), style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(24.dp))
+            points.forEach { (icon, text) ->
+                Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(text), style = MaterialTheme.typography.bodyLarge)
                 }
-                RestoreNewButton(vm, requireAuth)
             }
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { page = titles.lastIndex }) { Text(stringResource(R.string.action_skip)) }
-                Button(onClick = { page += 1 }) { Text(stringResource(R.string.action_next)) }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { requireAuth { vm.createVault() } }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_create_vault))
             }
+            RestoreNewButton(vm, requireAuth)
         }
     }
 }

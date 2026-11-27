@@ -108,13 +108,13 @@ fun SecretDetailScreen(vm: AppViewModel, state: UiState, id: String) {
     ScreenFrame(title = secret.name, onBack = { vm.back() }) {
         if (secret.isFile) {
             Text(stringResource(R.string.secret_file_info, secret.fileName, secret.value.length), style = MaterialTheme.typography.bodyMedium)
-            CopyRow(secret.name, secret.value, secret.value.take(24) + "…") { vm.showMessage(R.string.msg_copied) }
+            CopyRow(secret.name, secret.value, secret.value.take(24) + "…", done = false) { vm.showMessage(R.string.msg_copied) }
             OutlinedButton(
                 onClick = { vm.markExternal(); exportLauncher.launch(secret.fileName.ifBlank { "file" }) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.action_export_file)) }
         } else {
-            CopyRow(secret.name, secret.value, if (reveal) secret.value.take(200) else masked(secret.value)) {
+            CopyRow(secret.name, secret.value, if (reveal) secret.value.take(200) else masked(secret.value), done = false) {
                 vm.showMessage(R.string.msg_copied)
             }
             TextButton(onClick = { reveal = !reveal }) {

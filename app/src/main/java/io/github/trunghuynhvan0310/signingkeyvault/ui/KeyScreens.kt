@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,9 +39,32 @@ import java.util.Base64
 private const val MAX_IMPORT_BYTES = 1_000_000
 
 @Composable
+fun QuickKeystoreScreen(vm: AppViewModel) {
+    var name by remember { mutableStateOf("") }
+    var repo by remember { mutableStateOf("") }
+    val repoValid = repo.isEmpty() || REPO_REGEX.matches(repo.trim())
+    ScreenFrame(title = stringResource(R.string.title_quick_keystore), onBack = { vm.back() }) {
+        Field(stringResource(R.string.field_app_name), name, { name = it })
+        Field(
+            label = stringResource(R.string.field_repo),
+            value = repo,
+            onChange = { repo = it },
+            supporting = stringResource(if (repoValid) R.string.hint_repo else R.string.error_repo),
+        )
+        Button(
+            onClick = { vm.quickKeystore(name, repo) },
+            enabled = name.isNotBlank() && repoValid,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.action_generate)) }
+        Text(stringResource(R.string.quick_info), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
 fun NewKeystoreScreen(vm: AppViewModel, state: UiState, projectId: String) {
     val project = state.data.projects.firstOrNull { it.id == projectId }
     var label by remember { mutableStateOf((project?.name ?: "") + " release") }
+    var advanced by remember { mutableStateOf(false) }
     var alias by remember { mutableStateOf("release") }
     var commonName by remember { mutableStateOf(project?.name ?: "") }
     var organization by remember { mutableStateOf("") }
@@ -52,29 +76,32 @@ fun NewKeystoreScreen(vm: AppViewModel, state: UiState, projectId: String) {
         (country.isEmpty() || country.length == 2)
 
     ScreenFrame(title = stringResource(R.string.title_new_keystore), onBack = { vm.back() }) {
-        InfoCard(stringResource(R.string.keystore_new_info))
         Field(stringResource(R.string.field_label), label, { label = it })
-        Field(stringResource(R.string.field_alias), alias, { alias = it.trim() })
-        Field(stringResource(R.string.field_common_name), commonName, { commonName = it })
-        Field(stringResource(R.string.field_organization), organization, { organization = it })
-        Field(
-            label = stringResource(R.string.field_country),
-            value = country,
-            onChange = { country = it.take(2).uppercase() },
-        )
-        Field(
-            label = stringResource(R.string.field_validity_years),
-            value = years,
-            onChange = { years = it.filter(Char::isDigit).take(3) },
-            keyboardType = KeyboardType.Number,
-            supporting = stringResource(R.string.hint_validity),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(2048, 4096).forEach { size ->
-                FilterChip(selected = bits == size, onClick = { bits = size }, label = { Text("RSA $size") })
+        Text(stringResource(R.string.quick_info), style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { advanced = !advanced }) { Text(stringResource(R.string.action_advanced)) }
+        if (advanced) {
+            Field(stringResource(R.string.field_alias), alias, { alias = it.trim() })
+            Field(stringResource(R.string.field_common_name), commonName, { commonName = it })
+            Field(stringResource(R.string.field_organization), organization, { organization = it })
+            Field(
+                label = stringResource(R.string.field_country),
+                value = country,
+                onChange = { country = it.take(2).uppercase() },
+            )
+            Field(
+                label = stringResource(R.string.field_validity_years),
+                value = years,
+                onChange = { years = it.filter(Char::isDigit).take(3) },
+                keyboardType = KeyboardType.Number,
+                supporting = stringResource(R.string.hint_validity),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(2048, 4096).forEach { size ->
+                    FilterChip(selected = bits == size, onClick = { bits = size }, label = { Text("RSA $size") })
+                }
             }
+            if (bits == 4096) Text(stringResource(R.string.hint_slow_4096), style = MaterialTheme.typography.bodySmall)
         }
-        if (bits == 4096) Text(stringResource(R.string.hint_slow_4096), style = MaterialTheme.typography.bodySmall)
         Button(
             onClick = {
                 vm.generateKeystore(
@@ -138,6 +165,9 @@ fun ImportKeystoreScreen(vm: AppViewModel, projectId: String) {
 fun KeyDetailScreen(vm: AppViewModel, state: UiState, id: String) {
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
+    var doneRaw by rememberSaveable { mutableStateOf("") }
+    val done = doneRaw.split(",").filter { it.isNotEmpty() }.toSet()
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-pkcs12")) { uri: Uri? ->
         val item = state.data.keys.firstOrNull { it.id == id }
         if (uri != null && item != null) {
@@ -153,28 +183,32 @@ fun KeyDetailScreen(vm: AppViewModel, state: UiState, id: String) {
         return
     }
     val repo = state.data.projects.firstOrNull { it.id == key.projectId }?.repo.orEmpty()
-    val copied = { vm.showMessage(R.string.msg_copied) }
+    val copied = { isValue: Boolean, name: String ->
+        if (isValue && name !in done) doneRaw = (done + name).joinToString(",")
+        vm.showMessage(R.string.msg_copied)
+    }
 
     ScreenFrame(title = key.label.ifBlank { key.alias }, onBack = { vm.back() }) {
         Card(Modifier.fillMaxWidth()) {
-            SelectionContainer {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.key_info_alias, key.alias), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.key_info_valid, formatDate(key.validUntil)), style = MaterialTheme.typography.bodyMedium)
-                    Text("SHA-1", style = MaterialTheme.typography.labelMedium)
-                    Text(key.sha1, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
-                    Text("SHA-256", style = MaterialTheme.typography.labelMedium)
-                    Text(key.sha256, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.key_info_valid, formatDate(key.validUntil)), style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = { details = !details }) { Text(stringResource(R.string.action_details)) }
+                if (details) {
+                    SelectionContainer {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.key_info_alias, key.alias), style = MaterialTheme.typography.bodyMedium)
+                            Text("SHA-1", style = MaterialTheme.typography.labelMedium)
+                            Text(key.sha1, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                            Text("SHA-256", style = MaterialTheme.typography.labelMedium)
+                            Text(key.sha256, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                    }
                 }
             }
         }
 
-        SectionTitle(stringResource(R.string.section_github))
-        InfoCard(stringResource(R.string.github_steps))
-        CopyRow("KEYSTORE_BASE64", key.keystoreB64, "${key.keystoreB64.take(24)}… (${key.keystoreB64.length})", copied)
-        CopyRow("KEYSTORE_PASSWORD", key.storePassword, masked(key.storePassword), copied)
-        CopyRow("KEY_ALIAS", key.alias, key.alias, copied)
-        CopyRow("KEY_PASSWORD", key.keyPassword, masked(key.keyPassword), copied)
+        SectionTitle(stringResource(R.string.section_github, done.size.coerceAtMost(4)))
+        Text(stringResource(R.string.github_steps), style = MaterialTheme.typography.bodySmall)
         if (repo.isNotEmpty()) {
             Button(
                 onClick = {
@@ -187,11 +221,15 @@ fun KeyDetailScreen(vm: AppViewModel, state: UiState, id: String) {
         } else {
             Text(stringResource(R.string.hint_set_repo), style = MaterialTheme.typography.bodySmall)
         }
+        CopyRow("KEYSTORE_BASE64", key.keystoreB64, "${key.keystoreB64.take(24)}… (${key.keystoreB64.length})", "KEYSTORE_BASE64" in done) { copied(it, "KEYSTORE_BASE64") }
+        CopyRow("KEYSTORE_PASSWORD", key.storePassword, masked(key.storePassword), "KEYSTORE_PASSWORD" in done) { copied(it, "KEYSTORE_PASSWORD") }
+        CopyRow("KEY_ALIAS", key.alias, key.alias, "KEY_ALIAS" in done) { copied(it, "KEY_ALIAS") }
+        CopyRow("KEY_PASSWORD", key.keyPassword, masked(key.keyPassword), "KEY_PASSWORD" in done) { copied(it, "KEY_PASSWORD") }
+
         OutlinedButton(
             onClick = { vm.markExternal(); exportLauncher.launch(key.alias + ".p12") },
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.action_export_keystore)) }
-        Text(stringResource(R.string.key_backup_note), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { confirmDelete = true }) {
             Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
         }

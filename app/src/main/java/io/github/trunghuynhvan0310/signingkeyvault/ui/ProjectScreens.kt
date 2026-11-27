@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -37,7 +39,7 @@ import io.github.trunghuynhvan0310.signingkeyvault.R
 import io.github.trunghuynhvan0310.signingkeyvault.Screen
 import io.github.trunghuynhvan0310.signingkeyvault.UiState
 
-private val REPO_REGEX = Regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+internal val REPO_REGEX = Regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 @Composable
 fun HomeScreen(vm: AppViewModel, state: UiState) {
@@ -52,23 +54,29 @@ fun HomeScreen(vm: AppViewModel, state: UiState) {
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { vm.navigate(Screen.NewProject) },
+                onClick = { vm.navigate(Screen.QuickKeystore) },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.action_new_project)) },
+                text = { Text(stringResource(R.string.action_quick_keystore)) },
             )
         },
     ) {
         BackupHealthCard(state, onOpen = { vm.navigate(Screen.Backup) })
         if (state.data.projects.isEmpty()) {
-            Text(stringResource(R.string.home_empty), style = MaterialTheme.typography.bodyLarge)
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.home_empty), style = MaterialTheme.typography.titleMedium)
+            }
         }
         state.data.projects.forEach { project ->
             val keys = state.data.keys.count { it.projectId == project.id }
             val secrets = state.data.secrets.count { it.projectId == project.id }
             Card(onClick = { vm.navigate(Screen.ProjectDetail(project.id)) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(project.name, style = MaterialTheme.typography.titleMedium)
-                    if (project.repo.isNotEmpty()) Text(project.repo, style = MaterialTheme.typography.bodySmall)
                     Text(
                         pluralStringResource(R.plurals.count_keystores, keys, keys) + " · " +
                             pluralStringResource(R.plurals.count_secrets, secrets, secrets),
@@ -77,6 +85,7 @@ fun HomeScreen(vm: AppViewModel, state: UiState) {
                 }
             }
         }
+        TextButton(onClick = { vm.navigate(Screen.NewProject) }) { Text(stringResource(R.string.action_new_project)) }
         Spacer(Modifier.height(72.dp))
     }
 }

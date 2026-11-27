@@ -55,6 +55,7 @@ fun AppRoot(vm: AppViewModel, requireAuth: RequireAuth) {
                 Phase.Unlocked -> when (val screen = state.stack.last()) {
                     Screen.Home -> HomeScreen(vm, state)
                     Screen.NewProject -> NewProjectScreen(vm)
+                    Screen.QuickKeystore -> QuickKeystoreScreen(vm)
                     is Screen.ProjectDetail -> ProjectDetailScreen(vm, state, screen.id)
                     is Screen.NewKeystore -> NewKeystoreScreen(vm, state, screen.projectId)
                     is Screen.ImportKeystore -> ImportKeystoreScreen(vm, screen.projectId)

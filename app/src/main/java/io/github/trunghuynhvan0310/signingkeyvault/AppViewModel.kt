@@ -42,6 +42,7 @@ enum class Phase { Onboarding, Locked, Unlocked, KeyLost }
 sealed interface Screen {
     data object Home : Screen
     data object NewProject : Screen
+    data object QuickKeystore : Screen
     data class ProjectDetail(val id: String) : Screen
     data class NewKeystore(val projectId: String) : Screen
     data class ImportKeystore(val projectId: String) : Screen
@@ -293,7 +294,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         prefs.backupFolderName = runCatching { backups.folderName(uri) }.getOrNull()
         prefs.lastBackupError = null
         refreshBackupStatus()
-        if (_state.value.data.backup != null) backupNow() else post(R.string.msg_set_passphrase_first)
+        if (_state.value.data.backup != null) backupNow()
     }
 
     fun setBackupPassphrase(passphrase: CharArray) {
@@ -411,6 +412,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         back()
+    }
+
+    /** Tạo nhanh: một dự án và một keystore với giá trị mặc định (alias release, RSA 2048, 30 năm). */
+    fun quickKeystore(name: String, repo: String) {
+        val project = Project(newId(), name.trim(), repo.trim(), System.currentTimeMillis())
+        mutate { it.copy(projects = it.projects + project) }
+        generateKeystore(project.id, project.name + " release", KeystoreRequest("release", project.name, "", "", 30, 2048))
     }
 
     fun generateKeystore(projectId: String, label: String, request: KeystoreRequest) {

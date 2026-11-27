@@ -5,13 +5,20 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -33,88 +40,103 @@ import io.github.trunghuynhvan0310.signingkeyvault.R
 import io.github.trunghuynhvan0310.signingkeyvault.Screen
 import io.github.trunghuynhvan0310.signingkeyvault.UiState
 
-/** Thẻ tóm tắt tình trạng sao lưu; chạm để mở màn hình sao lưu. */
+/** Thẻ tóm tắt tình trạng sao lưu: một dòng, màu xanh khi ổn, màu đỏ khi cần xử lý. */
 @Composable
-fun BackupHealthCard(state: UiState, onOpen: () -> Unit) {
+fun BackupHealthCard(state: UiState, onOpen: (() -> Unit)?) {
     val status = state.backup
     val hasKey = state.data.backup != null
+    val ok: Boolean
     val text: String
-    var warning = true
     when {
-        !hasKey -> text = stringResource(R.string.health_no_passphrase)
-        status.folderName == null -> text = stringResource(R.string.health_no_folder)
-        status.error != null -> text = stringResource(R.string.health_failed, status.error)
-        status.lastBackupAt == 0L -> text = stringResource(R.string.health_never)
-        status.passphraseVerifiedAt == 0L -> {
-            text = stringResource(R.string.health_unverified, formatDateTime(status.lastBackupAt))
-            warning = false
-        }
-        else -> {
-            text = stringResource(R.string.health_ok, formatDateTime(status.lastBackupAt))
-            warning = false
+        !hasKey || status.folderName == null -> { ok = false; text = stringResource(R.string.health_not_set) }
+        status.error != null -> { ok = false; text = stringResource(R.string.health_failed, status.error) }
+        status.lastBackupAt == 0L -> { ok = false; text = stringResource(R.string.health_never) }
+        status.passphraseVerifiedAt == 0L -> { ok = true; text = stringResource(R.string.health_unverified, formatDateTime(status.lastBackupAt)) }
+        else -> { ok = true; text = stringResource(R.string.health_ok, formatDateTime(status.lastBackupAt)) }
+    }
+    val colors = CardDefaults.cardColors(
+        containerColor = if (ok) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
+    )
+    val content: @Composable ColumnScope.() -> Unit = {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(if (ok) Icons.Default.CheckCircle else Icons.Default.Warning, contentDescription = null)
+            Text(text, style = MaterialTheme.typography.bodyMedium)
         }
     }
-    InfoCard(text, warning = warning) {
-        TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_backup)) }
+    if (onOpen != null) {
+        Card(onClick = onOpen, modifier = Modifier.fillMaxWidth(), colors = colors, content = content)
+    } else {
+        Card(modifier = Modifier.fillMaxWidth(), colors = colors, content = content)
     }
 }
 
 @Composable
 fun BackupScreen(vm: AppViewModel, state: UiState) {
-    val context = LocalContext.current
     var setDialog by remember { mutableStateOf(false) }
     var verifyDialog by remember { mutableStateOf(false) }
+    var advanced by remember { mutableStateOf(false) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
+    val hasKey = state.data.backup != null
+    val hasFolder = state.backup.folderName != null
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) vm.setBackupFolder(uri)
+        if (uri != null) {
+            vm.setBackupFolder(uri)
+            if (!hasKey) setDialog = true
+        }
     }
     val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
         if (uri != null) vm.exportCopy(uri)
     }
     val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> restoreUri = uri }
-    val hasKey = state.data.backup != null
 
     ScreenFrame(title = stringResource(R.string.title_backup), onBack = { vm.back() }) {
-        BackupHealthCard(state, onOpen = {})
-        Text(stringResource(R.string.backup_intro), style = MaterialTheme.typography.bodyMedium)
+        BackupHealthCard(state, onOpen = null)
+        if (!hasKey || !hasFolder) {
+            Text(stringResource(R.string.backup_setup_info), style = MaterialTheme.typography.bodyMedium)
+            Button(
+                onClick = {
+                    if (!hasFolder) { vm.markExternal(); folderPicker.launch(null) } else setDialog = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.action_setup_backup)) }
+        } else {
+            state.backup.folderName?.let { Text(stringResource(R.string.backup_folder_current, it), style = MaterialTheme.typography.bodyMedium) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { vm.backupNow() }) { Text(stringResource(R.string.action_backup_now)) }
+                OutlinedButton(onClick = { vm.verifyFolder() }) { Text(stringResource(R.string.action_verify_folder)) }
+            }
+            if (state.backup.passphraseVerifiedAt == 0L) {
+                OutlinedButton(onClick = { verifyDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.action_verify_passphrase))
+                }
+            }
+        }
 
-        SectionTitle(stringResource(R.string.backup_step1))
-        Text(stringResource(R.string.backup_step1_text), style = MaterialTheme.typography.bodySmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { setDialog = true }) {
+        TextButton(onClick = { advanced = !advanced }) { Text(stringResource(R.string.action_advanced)) }
+        if (advanced) {
+            OutlinedButton(onClick = { vm.markExternal(); folderPicker.launch(null) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_choose_folder))
+            }
+            OutlinedButton(onClick = { setDialog = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(if (hasKey) R.string.action_change_passphrase else R.string.action_set_passphrase))
             }
-            if (hasKey) OutlinedButton(onClick = { verifyDialog = true }) { Text(stringResource(R.string.action_verify_passphrase)) }
+            if (hasKey) {
+                OutlinedButton(onClick = { verifyDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.action_verify_passphrase))
+                }
+            }
+            OutlinedButton(
+                onClick = { vm.markExternal(); exportPicker.launch("signing-key-vault-copy.vault") },
+                enabled = hasKey,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.action_export_copy)) }
+            OutlinedButton(
+                onClick = { vm.markExternal(); restorePicker.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.action_restore_file)) }
+            Text(stringResource(R.string.backup_crypto_note), style = MaterialTheme.typography.bodySmall)
         }
-
-        SectionTitle(stringResource(R.string.backup_step2))
-        Text(
-            state.backup.folderName?.let { stringResource(R.string.backup_folder_current, it) }
-                ?: stringResource(R.string.backup_folder_none),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(stringResource(R.string.backup_step2_text), style = MaterialTheme.typography.bodySmall)
-        Button(onClick = { vm.markExternal(); folderPicker.launch(null) }) { Text(stringResource(R.string.action_choose_folder)) }
-
-        SectionTitle(stringResource(R.string.backup_step3))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { vm.backupNow() }) { Text(stringResource(R.string.action_backup_now)) }
-            OutlinedButton(onClick = { vm.verifyFolder() }) { Text(stringResource(R.string.action_verify_folder)) }
-        }
-        OutlinedButton(
-            onClick = { vm.markExternal(); exportPicker.launch("signing-key-vault-copy.vault") },
-            enabled = hasKey,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.action_export_copy)) }
-
-        SectionTitle(stringResource(R.string.backup_restore))
-        Text(stringResource(R.string.backup_restore_text), style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(
-            onClick = { vm.markExternal(); restorePicker.launch(arrayOf("*/*")) },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.action_restore_file)) }
-        Text(stringResource(R.string.backup_crypto_note), style = MaterialTheme.typography.bodySmall)
     }
 
     if (setDialog) {

@@ -23,5 +23,8 @@ App Android cá nhân để tạo và quản lý khóa ký (keystore) ngay trên
 - Chưa tạo khóa ký release cho chính app này (bản đầu dùng khóa debug; tạo khóa bằng app rồi thêm 4 secret, xem README).
 - Chưa kiểm chứng trên máy thật: người dùng test.
 
+## Lịch sử giao diện
+- 1.1.0: bỏ giới thiệu nhiều trang, thêm Tạo khóa ký nhanh (chỉ cần tên app), checklist chép 4 secret, gói thiết lập sao lưu vào một nút, ẩn tùy chọn nâng cao.
+
 ## Đã thử rồi bỏ
 (chưa có)
